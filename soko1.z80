@@ -1,0 +1,700 @@
+.nolist
+#include "../inc/ti83p.inc"
+.list
+#define cemt $00 ;empty code
+#define cwal $01 ;wall code
+#define cgol $02 ;goal code
+#define cblk $03 ;block code
+#define cplr $04 ;player code
+#define cbgl (cgol + cblk) ;$05 - block on a goal 
+#define cpgl (cgol + cplr) ;$06 - player on a goal
+.org userMem - 2
+.db t2ByteTok, tAsmCmp
+
+start:
+	;bcall(_RunIndicOff)
+	bcall(_ClrLCDFull)
+	call title
+	ld hl, (poslist)
+	ld (ppos), hl
+mainloop:	
+	call draw
+	call keyread
+	call checkgoals
+	ld a, (quit)
+	cp 0
+	jp z, mainloop
+	
+	bcall(_ClrLCDFull)
+	ld a, (won)
+	cp 0
+	ret z
+	call winner
+	bcall(_GetKey)
+	bcall(_ClrLCDFull)
+	ld hl, $0000
+	ld (curRow), hl
+	bcall(_RunIndicOn)
+	ret
+	
+moves:
+	.dw $0000
+quit:
+	.db 0
+won:
+	.db 0
+initdraw:
+	.db 1 ;flag for drawing walls
+test:
+	.dw "Test", 0
+	
+poslist:
+	;must match the location of cplr in respective map
+	.dw $0202, $0A06, $0706, $0502 ;x, y
+	;dw $0502
+maplist:
+	.dw map, map2, map3, map4, $0000
+	;.dw map4, $0000
+curmap:
+	.dw map
+	;.dw map4
+map:
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	.db cwal, cwal, cwal, cemt, cemt, cemt, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	.db cwal, cgol, cplr, cblk, cemt, cemt, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	.db cwal, cwal, cwal, cemt, cblk, cgol, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	.db cwal, cgol, cwal, cwal, cblk, cemt, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	.db cwal, cemt, cwal, cemt, cgol, cemt, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	.db cwal, cblk, cemt, cbgl, cblk, cblk, cgol, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	.db cwal, cemt, cemt, cemt, cgol, cemt, cemt, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+map2:
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cemt, cemt, cemt, cemt, cemt, cemt, cemt
+	.db cwal, cemt, cemt, cgol, cgol, cwal, cemt, cemt, cemt, cemt, cblk, cemt, cblk, cemt, cemt, cemt
+	.db cemt, cbgl, cemt, cgol, cgol, cwal, cemt, cwal, cwal, cemt, cemt, cwal, cemt, cemt, cemt, cemt
+	.db cemt, cemt, cemt, cwal, cwal, cwal, cemt, cemt, cwal, cemt, cemt, cwal, cemt, cemt, cemt, cemt
+	.db cwal, cemt, cwal, cwal, cwal, cwal, cwal, cblk, cwal, cemt, cwal, cwal, cblk, cwal, cwal, cwal
+	.db cwal, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt
+	.db cwal, cemt, cemt, cwal, cwal, cemt, cemt, cemt, cemt, cemt, cplr, cemt, cemt, cemt, cemt, cemt
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+map3:
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cemt, cemt, cemt, cemt, cemt, cemt
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cemt, cblk, cemt, cwal, cwal, cwal, cwal, cemt, cemt, cemt
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cblk, cblk, cblk, cwal, cemt, cemt, cblk, cblk, cwal, cwal
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cemt, cemt, cemt, cwal, cemt, cemt, cemt, cemt, cemt, cwal
+	.db cgol, cgol, cgol, cemt, cemt, cwal, cemt, cemt, cwal, cwal, cwal, cwal, cblk, cemt, cemt, cwal
+	.db cgol, cemt, cemt, cemt, cemt, cemt, cemt, cplr, cemt, cemt, cemt, cblk, cemt, cemt, cemt, cwal
+	.db cgol, cgol, cgol, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cwal, cwal, cwal, cwal, cwal
+map4:
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	.db cwal, cgol, cgol, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cgol, cgol, cgol, cwal
+	.db cwal, cgol, cgol, cgol, cemt, cplr, cemt, cblk, cemt, cemt, cemt, cblk, cgol, cgol, cgol, cwal
+	.db cwal, cwal, cwal, cwal, cwal, cemt, cemt, cblk, cemt, cwal, cwal, cemt, cwal, cwal, cwal, cwal
+	.db cwal, cwal, cemt, cemt, cemt, cemt, cblk, cblk, cblk, cemt, cwal, cemt, cwal, cwal, cwal, cwal
+	.db cwal, cwal, cemt, cblk, cblk, cemt, cblk, cemt, cemt, cwal, cwal, cemt, cwal, cwal, cwal, cwal
+	.db cwal, cwal, cemt, cemt, cemt, cwal, cblk, cblk, cemt, cemt, cemt, cemt, cwal, cwal, cwal, cwal
+	.db cwal, cwal, cwal, cwal, cwal, cwal, cemt, cemt, cemt, cwal, cwal, cwal, cwal, cwal, cwal, cwal
+	
+	
+dontusedevmap:
+	.db cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt, cemt
+
+chartable:
+	.db ' ', $E0, $0A, 'O', 'A', '0', 'A'
+	
+
+ppos:
+	.dw $0202 ;x, y
+dpos:
+	.db 2, 2
+bdpos:
+	.db 0, 0 ;desired position of a pushed block	
+mppos:
+	.dw $0000
+mdpos:
+	.dw $0000
+mbdpos:
+	.dw $0000
+	
+keyread:
+	bcall(_GetKey)
+	cp kLeft
+	call z, keyleft
+	cp kRight
+	call z, keyright
+	cp kUp
+	call z, keyup
+	cp kDown
+	call z, keydown
+	
+	cp kClear
+	ret nz
+	ld a, 1
+	ld (quit), a
+	ret
+	
+; CHECKGOALS ============
+checkgoals_mapidx:
+	.db 0
+checkgoals:
+	ld b, 8 * 16
+	ld hl, (curmap)
+checkgoals_loop:
+	ld a, (hl)
+	cp cgol
+	ret z
+	cp cpgl
+	ret z
+	inc hl
+	djnz checkgoals_loop
+	
+	;change level
+	ld a, (checkgoals_mapidx)
+	inc a
+	inc a
+	ld (checkgoals_mapidx), a
+	ld hl, maplist
+	add a, l
+	ld l, a
+	ld e, (hl)
+	inc hl
+	ld d, (hl)
+
+	;check for end of list
+	ld a, d
+	cp 0
+	jp nz, checkgoals_validmap
+	ld a, e
+	cp 0
+	jp nz, checkgoals_validmap
+;null terminator
+	ld a, 1
+	ld (quit), a
+	ld (won), a
+	ret
+checkgoals_validmap:
+	ld (curmap), de
+
+	ld a, (checkgoals_mapidx)
+	ld hl, poslist
+	add a, l
+	ld l, a
+	ld a, (hl)
+	ld (ppos), a
+	inc hl
+	ld a, (hl)
+	ld (ppos + 1), a
+
+	ld a, 1
+	ld (initdraw), a
+	ret
+; CHECKGOALS ============
+
+; MOVE ==================
+move:
+	;inputs: hl=desired position
+	;outputs: sets dpos, ppos, mdpos, mppos
+	ld (dpos), hl
+	ld a, l
+	add a, a; y * 16
+	add a, a
+	add a, a
+	add a, a
+	add a, h; x
+
+	ld d, 0
+	ld e, a
+	ld hl, (curmap)
+	add hl, de ;dmap ofs
+	ld (mdpos), hl
+	
+	ld hl, (ppos)
+	ld a, l
+	add a, a; y * 16
+	add a, a
+	add a, a
+	add a, a
+	add a, h; x
+
+	ld d, 0
+	ld e, a
+	ld hl, (curmap)
+	add hl, de ;pmap ofs
+	ld (mppos), hl
+
+	;collision
+	ld a, (dpos);check screen bounds
+	cp -1
+	jp z, collision_wall
+	cp 8
+	jp z, collision_wall
+	ld a, (dpos + 1)
+	cp -1
+	jp z, collision_wall
+	cp 16
+	jp z, collision_wall
+	
+	
+	ld hl, (mdpos) ;check map data
+	ld a, (hl) ;double dereference
+	
+	cp cblk
+	jp z, hit_block
+	cp cgol
+	jp z, hit_goal
+	cp cbgl
+	jp z, hit_bgoal
+	cp cwal
+	jp nz, hit_nothing
+collision_wall:
+	ld hl, (mppos)
+	ld (mdpos), hl
+	ld hl, (ppos)
+	ld (dpos), hl
+	ret
+hit_block:
+hit_bgoal:
+	call run_move_block ;check if the block can move
+	cp 0
+	jp nz, hit_block_nomove
+	jp hit_nothing
+hit_block_nomove:
+	ld hl, (mppos)
+	ld (mdpos), hl
+	ld hl, (ppos)
+	ld (dpos), hl
+	ret
+hit_nothing:
+hit_goal:
+	ld hl, (mppos)
+	ld a, (hl)
+	sub cplr
+	ld (hl), a ;restore
+	
+	ld hl, (mdpos)
+	ld a, (hl)
+	add a, cplr
+	ld (hl), a
+	ret
+; MOVE ==================
+
+; MOVE_BLOCK ========================
+run_move_block:
+	;outputs: a=0 if able to move, non-zero if not able to move
+	ld a, (dpos) ;check y first
+	ld h, a
+	ld a, (ppos)
+	cp h
+	jp z, move_block_checkx
+	jp c, move_block_check_down;dpos.y > ppos.y
+	
+;check_up
+	ld hl, (dpos)
+	ld a, l
+	dec a
+	ld l, a
+	ld (bdpos), hl
+	call move_block
+	ret
+move_block_check_down:
+	ld hl, (dpos)
+	ld a, l
+	inc a
+	ld l, a
+	ld (bdpos), hl
+	call move_block
+	ret
+
+move_block_checkx:
+	ld a, (dpos + 1)
+	ld h, a
+	ld a, (ppos + 1)
+	cp h
+	;no need to check for z here, since if the above code reaches this point the x value must be different
+	jp c, move_block_check_right
+	
+;check_left
+	ld hl, (dpos)
+	ld a, h
+	dec a
+	ld h, a
+	ld (bdpos), hl
+	call move_block
+	ret
+move_block_check_right:
+	ld hl, (dpos)
+	ld a, h
+	inc a
+	ld h, a
+	ld (bdpos), hl
+	call move_block
+	ret
+; MOVE_BLOCK ========================
+
+; COLLISION_BLOCK ========================
+move_block:
+	ld hl, (bdpos)
+	ld a, l
+	add a, a; y * 16
+	add a, a
+	add a, a
+	add a, a
+	add a, h; x
+
+	ld d, 0
+	ld e, a
+	ld hl, (curmap)
+	add hl, de ;map position
+	ld (mbdpos), hl
+
+	ld a, (hl) ;since hl holds (mdpos)
+	;check for oobs
+	
+	cp cwal
+	jp z, block_hit_block
+	cp cblk
+	jp z, block_hit_block
+	cp cbgl
+	jp z, block_hit_block
+	ld a, (bdpos)
+	cp -1
+	jp z, block_hit_block
+	cp 8
+	jp z, block_hit_block
+	ld a, (bdpos + 1)
+	cp -1
+	jp z, block_hit_block
+	cp 16
+	jp z, block_hit_block
+	
+;valid
+	;just advance the block
+	ld hl, (mdpos)
+	ld a, (hl)
+	sub cblk
+	ld (hl), a ;restore
+
+	ld hl, (mbdpos)
+	ld a, (hl)
+	add a, cblk
+	ld (hl), a
+	
+	ld a, 0
+	ret
+block_hit_block:
+	ld a, 1
+	ret
+; COLLISION_BLOCK ========================
+
+keyup:
+	push af
+	ld hl, (ppos)
+	dec l
+	call move
+	ld hl, (dpos)
+	ld (ppos), hl
+
+	ld hl, (moves)
+	inc hl
+	ld (moves), hl
+	pop af
+	ret
+
+keydown:
+	push af
+	ld hl, (ppos)
+	inc l
+	call move
+	ld hl, (dpos)
+	ld (ppos), hl
+
+	ld hl, (moves)
+	inc hl
+	ld (moves), hl
+	pop af
+	ret
+
+
+keyleft:
+	push af
+	ld hl, (ppos)
+	dec h
+	call move
+	ld hl, (dpos)
+	ld (ppos), hl
+	
+	ld hl, (moves)
+	inc hl
+	ld (moves), hl
+	pop af
+	ret
+
+keyright:
+	push af
+	ld hl, (ppos)
+	inc h 
+	call move
+	ld hl, (dpos)
+	ld (ppos), hl
+
+	ld hl, (moves)
+	inc hl
+	ld (moves), hl
+	pop af
+	ret
+
+
+draw:
+	ld b, 8
+	ld a, 0
+	ld (draw_y), a
+draw_loop1:
+	push bc
+	ld b, 16
+	
+draw_loop2: ;==================
+	dec b
+	ld a, (draw_y) ;setup row for bcall
+	ld e, a
+	ld d, b
+	ld (curRow), de
+
+	add a, a ;setupdraw_y * 16
+	add a, a
+	add a, a
+	add a, a
+	add a, b ;add x
+
+	
+	ld d, 0 ;get the real map addr
+	ld e, a
+	ld hl, (curmap)
+	add hl, de
+	ld a, (hl)
+
+	cp cwal
+	jp nz, draw_dodraw
+	ld c, a
+	ld a, (initdraw)
+	cp 0
+	ld a, c
+	jp z, draw_skipdraw ;no need to redraw walls
+	
+draw_dodraw:
+	ld de, chartable
+	add a, e
+	ld e, a
+	ld a, (de)
+	bcall(_PutMap)
+draw_skipdraw:
+	inc b
+	djnz draw_loop2 ;==========
+	
+	ld a, (draw_y)
+	inc a
+	ld (draw_y), a
+	pop bc
+	djnz draw_loop1
+	
+	ld a, 0
+	ld (initdraw), a
+	ret
+	
+draw_y:
+	.db 0
+
+;WINNER =================
+wmsg1:
+	.db "Congratulations!", 0
+wmsg2:
+	.db "Your score was: ", 0
+wmsgclr:
+	.db "                ", 0
+winner:
+	ld hl, $0000
+	ld (curRow), hl
+	ld hl, wmsg1
+	bcall(_PutS)
+	 
+	ld hl, $0001
+	ld (curRow), hl
+	ld hl, wmsg2
+	bcall(_PutS)
+
+	ld hl, $0002
+	ld (curRow), hl
+	ld hl, (moves)
+
+	;(65536 - (moves)) / 16 => clamp to 0, 1023
+	ex de, hl
+	ld hl, $FFFF
+	scf
+	ccf
+	sbc hl, de
+	srl h
+	rr l
+	srl h
+	rr l
+	srl h
+	rr l
+	srl h
+	rr l
+	srl h
+	rr l
+	srl h
+	rr l
+	
+	bcall(_DispHL)
+	ret
+;WINNER =================
+
+titlemessagetable:
+	.dw tmsg1, tmsg2, tmsg3, tmsg2, tmsg4, tmsg5, tmsg6
+tmsg2:
+	.db $20, $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, 0 ;so the screen doesn't scroll
+	.db "     OOOOOO      ", 0;these char arrays are totally unnecessary, just here to visualize the shape
+	.db "    O      O     ", 0
+	.db "    O      O     ", 0
+	.db "    O      O     ", 0
+	.db "    O      O     ", 0
+	.db "    O      O     ", 0
+	.db "     OOOOOO      ", 0
+	.db "               ", 0
+tmsg1:
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, 0
+	.db "    OOOOOOOO    ", 0
+	.db "    O           ", 0
+	.db "    O           ", 0
+	.db "    OOOOOOOO    ", 0
+	.db "           O    ", 0
+	.db "           O    ", 0
+	.db "    OOOOOOOO    ", 0
+	.db "               ", 0
+tmsg3:
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, 0
+	.db "    O      O    ", 0
+	.db "    O     O     ", 0
+	.db "    O    O      ", 0
+	.db "    OOOOO       ", 0
+	.db "    O    O      ", 0
+	.db "    O     O     ", 0
+	.db "    O      O    ", 0
+	.db "               ", 0
+tmsg4:
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, 0
+	.db "    OOOOOOOO    ", 0
+	.db "    O      O    ", 0
+	.db "    O      O    ", 0
+	.db "    OOOOOOOO    ", 0
+	.db "    O      O    ", 0
+	.db "    O      O    ", 0
+	.db "    OOOOOOOO    ", 0
+	.db "               ", 0
+tmsg5:
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, 0
+	.db "    OOOOOOOO    ", 0
+	.db "    O      O    ", 0
+	.db "    O      O    ", 0
+	.db "    OOOOOOOO    ", 0
+	.db "    O      O    ", 0
+	.db "    O      O    ", 0
+	.db "    O      O    ", 0
+	.db "               ", 0
+tmsg6:
+	.db $20, $20, $20, $20, $E0, $E0, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $E0, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $E0, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $E0, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $E0, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $E0, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $E0, $20, $20, $20, $20, $20, $20, $E0, $20, $20, $20, $20, 0
+	.db $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, $20, 0
+	.db "    OO     O    ", 0
+	.db "    OO     O    ", 0
+	.db "    O O    O    ", 0
+	.db "    O  O   O    ", 0
+	.db "    O   O  O    ", 0
+	.db "    O    O O    ", 0
+	.db "    O     OO    ", 0
+	.db "               ", 0
+
+	
+title:
+	ld b, 7
+	ld de, titlemessagetable
+title_msgloop:
+	push bc
+	
+	ld hl, $0000
+	ld (curRow), hl
+	ld a, (de)
+	ld l, a
+	inc de
+	ld a, (de)
+	ld h, a
+	inc de
+	push de
+	ld b, 8
+title_rowloop:
+	bcall(_PutS)
+	djnz title_rowloop
+	call title_wastetime
+	pop de
+	pop bc
+	djnz title_msgloop
+
+	;bcall(_GetKey)	
+	ret
+
+title_wastetime:
+	push bc
+	ld b, 255
+title_wastetime_loop1:
+	push bc
+	ld b, 255
+title_wastetime_loop2:
+	nop
+	nop
+	nop
+	nop
+	nop
+	djnz title_wastetime_loop2
+	pop bc
+	djnz title_wastetime_loop1
+	pop bc
+	ret
